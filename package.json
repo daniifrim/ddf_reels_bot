@@ -1,0 +1,29 @@
+{
+  "name": "ddf-reels-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot to collect Instagram Reel links and add them to Coda database",
+  "main": "api/index.py",
+  "scripts": {
+    "deploy": "node vercel_setup.js",
+    "deploy:bash": "chmod +x vercel_setup.sh && ./vercel_setup.sh",
+    "deploy:simple": "chmod +x deploy.sh && ./deploy.sh",
+    "test": "python test_coda_connection.py"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "coda",
+    "instagram",
+    "reels",
+    "vercel",
+    "serverless"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+} 
