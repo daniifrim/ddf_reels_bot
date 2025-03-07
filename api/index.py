@@ -17,22 +17,21 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7780725841:AAEkNzWjmG6jr2wDCS5w--Yj
 
 # Coda API Details
 CODA_API_KEY = os.getenv("CODA_API_KEY", "3e92f721-91d1-485e-aab9-b7d50e4fa4da")
-DOC_ID = os.getenv("CODA_DOC_ID", "dNYzN0H9At4")
-TABLE_ID = os.getenv("CODA_TABLE_ID", "tun7MrAA")
-LINK_COLUMN_ID = os.getenv("CODA_LINK_COLUMN_ID", "c-LFekrYG0se")
+DOC_ID = os.getenv("CODA_DOC_ID", "NYzN0H9At4")
+TABLE_ID = os.getenv("CODA_TABLE_ID", "grid-Pyccn7MrAA")
 
-# Define a regex pattern for Instagram Reel links
-INSTAGRAM_REEL_PATTERN = r'https://(?:www\.)?instagram\.com/(?:reel|p)/[\w-]+/?'
+# Define a regex pattern for any Instagram link
+INSTAGRAM_PATTERN = r'https://(?:www\.)?instagram\.com/[^\s"]+(?:\?[^\s"]*)?'
 
 # Initialize Telegram Bot
 bot = telebot.TeleBot(BOT_TOKEN)
 
 def send_to_coda(link, sender_info):
     """
-    Send Instagram reel link to Coda database
+    Send Instagram link to Coda database
     
     Args:
-        link: The Instagram reel link
+        link: The Instagram link
         sender_info: Information about the sender (username or first name)
     
     Returns:
@@ -45,12 +44,12 @@ def send_to_coda(link, sender_info):
             "Content-Type": "application/json"
         }
         
-        # Prepare the data to be sent to Coda
+        # Prepare the data to be sent to Coda using column name
         body = {
             "rows": [
                 {
                     "cells": [
-                        {"column": LINK_COLUMN_ID, "value": link}
+                        {"column": "Link", "value": link}
                     ]
                 }
             ]
@@ -73,24 +72,25 @@ def send_welcome(message):
     """Handle /start and /help commands"""
     welcome_text = (
         "👋 Welcome to DDF Reels Bot!\n\n"
-        "I collect Instagram Reel links and save them to the DDF database.\n\n"
-        "Just send me an Instagram Reel link, and I'll take care of the rest. "
-        "The link should look like: https://www.instagram.com/reel/ABC123/"
+        "I collect Instagram links and save them to the DDF database.\n\n"
+        "Just send me any Instagram link, and I'll take care of the rest."
     )
     bot.reply_to(message, welcome_text)
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    """Handle all incoming messages and check for Instagram Reel links"""
+    """Handle all incoming messages and check for Instagram links"""
     # Extract the message text and sender information
     text = message.text.strip()
     sender = message.from_user.username or message.from_user.first_name or "Unknown"
+    print(f"Received message: {text} from {sender}")
     
-    # Use regex to find all Instagram reel links in the message
-    reel_links = re.findall(INSTAGRAM_REEL_PATTERN, text)
+    # Use regex to find all Instagram links in the message
+    instagram_links = re.findall(INSTAGRAM_PATTERN, text)
+    print(f"Found links: {instagram_links}")
     
-    if reel_links:
-        for link in reel_links:
+    if instagram_links:
+        for link in instagram_links:
             success, result = send_to_coda(link, sender)
             
             if success:
@@ -106,21 +106,25 @@ def handle_message(message):
     else:
         bot.reply_to(
             message,
-            "❓ I didn't recognize any Instagram Reel links in your message.\n\n"
-            "Please send a valid Instagram Reel link that looks like:\n"
-            "https://www.instagram.com/reel/ABC123/"
+            "❓ I didn't recognize any Instagram links in your message.\n\n"
+            "Please send a valid Instagram link that starts with https://instagram.com/ or https://www.instagram.com/"
         )
 
 # Process webhook calls - this is the endpoint Vercel will expose
 @app.route('/api/webhook', methods=['POST'])
 def webhook():
-    if request.headers.get('content-type') == 'application/json':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-        return ''
-    else:
-        return Response(status=403)
+    # Always return 200 OK for Telegram's webhook verification
+    if request.method == 'POST':
+        try:
+            json_string = request.get_data().decode('utf-8')
+            update = telebot.types.Update.de_json(json_string)
+            bot.process_new_updates([update])
+            return '', 200
+        except Exception as e:
+            print(f"Error processing webhook: {str(e)}")
+            # Still return 200 to avoid Telegram's retry mechanism
+            return '', 200
+    return '', 200
 
 # The main entry point for Vercel
 @app.route('/', methods=['GET', 'POST'])
