@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "api/index.py"
+    }
+  ],
+  "env": {
+    "TELEGRAM_BOT_TOKEN": "7780725841:AAEkNzWjmG6jr2wDCS5w--YjupCQDSPmkm0",
+    "CODA_API_KEY": "3e92f721-91d1-485e-aab9-b7d50e4fa4da",
+    "CODA_DOC_ID": "dNYzN0H9At4",
+    "CODA_TABLE_ID": "tun7MrAA",
+    "CODA_LINK_COLUMN_ID": "c-LFekrYG0se"
+  }
+} 
