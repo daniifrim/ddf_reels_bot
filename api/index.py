@@ -113,18 +113,32 @@ def handle_message(message):
 # Process webhook calls - this is the endpoint Vercel will expose
 @app.route('/api/webhook', methods=['POST'])
 def webhook():
-    # Always return 200 OK for Telegram's webhook verification
+    """Handle webhook calls from Telegram"""
     if request.method == 'POST':
         try:
-            json_string = request.get_data().decode('utf-8')
-            update = telebot.types.Update.de_json(json_string)
+            # Get the request data
+            if not request.is_json:
+                print("Error: Request is not JSON")
+                return '', 400
+
+            # Get the update from Telegram
+            update = telebot.types.Update.de_json(request.get_json(force=True))
+            
+            if not update:
+                print("Error: Could not parse Telegram update")
+                return '', 400
+                
+            print(f"Received update: {update}")
+            
+            # Process the update
             bot.process_new_updates([update])
             return '', 200
+            
         except Exception as e:
             print(f"Error processing webhook: {str(e)}")
-            # Still return 200 to avoid Telegram's retry mechanism
-            return '', 200
-    return '', 200
+            return '', 500
+            
+    return '', 403
 
 # The main entry point for Vercel
 @app.route('/', methods=['GET', 'POST'])
@@ -146,8 +160,8 @@ if __name__ == "__main__":
         bot.remove_webhook()
         
         # Set webhook
-        bot.set_webhook(url=WEBHOOK_URL)
-        print(f"Webhook set to {WEBHOOK_URL}")
+        bot.set_webhook(url=f"{WEBHOOK_URL}/api/webhook")
+        print(f"Webhook set to {WEBHOOK_URL}/api/webhook")
         
         # Start Flask server for local testing
         app.run(host='0.0.0.0', port=8080)
