@@ -28,7 +28,7 @@ LINK_COLUMN_ID = os.getenv("CODA_LINK_COLUMN_ID", "c-LFekrYG0se")
 print(f"Using Coda Link Column ID: {LINK_COLUMN_ID}")
 
 # Define a regex pattern for any Instagram link
-INSTAGRAM_PATTERN = r'https://(?:www\.)?instagram\.com/[^\s"]+(?:\?[^\s"]*)?'
+INSTAGRAM_PATTERN = r'https://(?:www\.)?instagram\.com/(?:[^/\s"]+/)*[^/\s"]+/?(?:\?[^\s"]*)?'
 
 # Initialize Telegram Bot
 print("Initializing Telegram Bot")
@@ -97,6 +97,7 @@ def webhook():
                 print(f"Extracted message text: {message_text}")
                 
                 # Search for Instagram links
+                print(f"Testing message '{message_text}' against pattern '{INSTAGRAM_PATTERN}'")
                 links = re.findall(INSTAGRAM_PATTERN, message_text)
                 print(f"Found Instagram links: {links}")
                 
