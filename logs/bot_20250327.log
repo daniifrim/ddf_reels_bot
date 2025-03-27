@@ -1,0 +1,4 @@
+2025-03-27 12:45:26,998 - root - INFO - Sending link to Coda: https://www.instagram.com/reel/ABC123/ from test_user
+2025-03-27 12:45:26,998 - root - ERROR - Error sending to Coda: API Error
+2025-03-27 12:45:26,998 - root - INFO - Sending link to Coda: https://www.instagram.com/reel/ABC123/ from test_user
+2025-03-27 12:45:26,998 - root - INFO - Successfully saved link to Coda. Status code: 200
