@@ -79,12 +79,12 @@ def send_to_coda(link):
             "Content-Type": "application/json"
         }
         
-        # Prepare the data to be sent to Coda using column ID
+        # Use the column name "Link" instead of column ID for consistency with test_coda_direct.py
         body = {
             "rows": [
                 {
                     "cells": [
-                        {"column": LINK_COLUMN_ID, "value": link}
+                        {"column": "Link", "value": link}
                     ]
                 }
             ]
