@@ -3,6 +3,7 @@ import json
 import telebot
 import requests
 import re
+import traceback
 from flask import Flask, request, Response
 from dotenv import load_dotenv
 
@@ -87,41 +88,61 @@ def handle_message(message):
     print(f"Received message: {text} from {sender}")
     
     # Use regex to find all Instagram links in the message
-    instagram_links = re.findall(INSTAGRAM_PATTERN, text)
-    print(f"Found links: {instagram_links}")
-    
-    if instagram_links:
-        for link in instagram_links:
-            success, result = send_to_coda(link, sender)
-            
-            if success:
-                bot.reply_to(
-                    message, 
-                    f"✅ Link saved successfully to the DDF database!"
-                )
-            else:
-                bot.reply_to(
-                    message,
-                    f"❌ Failed to save link. Error: {result}. Please try again later."
-                )
-    else:
-        bot.reply_to(
-            message,
-            "❓ I didn't recognize any Instagram links in your message.\n\n"
-            "Please send a valid Instagram link that starts with https://instagram.com/ or https://www.instagram.com/"
-        )
+    try:
+        print(f"About to process text with regex: {text}")
+        instagram_links = re.findall(INSTAGRAM_PATTERN, text)
+        print(f"Found links: {instagram_links}")
+        
+        if instagram_links:
+            print(f"Processing {len(instagram_links)} links")
+            for link in instagram_links:
+                try:
+                    print(f"Sending link to Coda: {link}")
+                    success, result = send_to_coda(link, sender)
+                    print(f"Coda result: {success}, {result}")
+                    
+                    if success:
+                        print(f"Sending success message to user")
+                        bot.reply_to(
+                            message, 
+                            f"✅ Link saved successfully to the DDF database!"
+                        )
+                    else:
+                        print(f"Sending failure message to user")
+                        bot.reply_to(
+                            message,
+                            f"❌ Failed to save link. Error: {result}. Please try again later."
+                        )
+                except Exception as e:
+                    print(f"Error processing link {link}: {str(e)}")
+        else:
+            print(f"No links found, sending message to user")
+            bot.reply_to(
+                message,
+                "❓ I didn't recognize any Instagram links in your message.\n\n"
+                "Please send a valid Instagram link that starts with https://instagram.com/ or https://www.instagram.com/"
+            )
+    except Exception as e:
+        print(f"ERROR in handle_message: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
 
 # Process webhook calls - this is the endpoint Vercel will expose
 @app.route('/api/webhook', methods=['POST'])
 def webhook():
     """Handle webhook calls from Telegram"""
+    print("Webhook endpoint called")
     if request.method == 'POST':
         try:
             # Get the request data
+            print(f"Request headers: {request.headers}")
             if not request.is_json:
                 print("Error: Request is not JSON")
                 return '', 400
 
+            # Get the raw data
+            raw_data = request.get_data()
+            print(f"Raw request data: {raw_data}")
+            
             # Get the update from Telegram
             update = telebot.types.Update.de_json(request.get_json(force=True))
             
@@ -132,11 +153,14 @@ def webhook():
             print(f"Received update: {update}")
             
             # Process the update
+            print("About to process update with bot.process_new_updates")
             bot.process_new_updates([update])
+            print("Finished processing update")
             return '', 200
             
         except Exception as e:
             print(f"Error processing webhook: {str(e)}")
+            print(f"Traceback: {traceback.format_exc()}")
             return '', 500
             
     return '', 403
