@@ -4,6 +4,7 @@ import requests
 import time
 import re
 import logging
+import sys
 from dotenv import load_dotenv
 from monitoring import setup_logging, monitor, error_handler
 
@@ -13,26 +14,57 @@ logger = setup_logging()
 # Load environment variables from .env file if it exists
 load_dotenv()
 
-# Telegram Bot Token - using environment variable or direct assignment
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7780725841:AAEkNzWjmG6jr2wDCS5w--YjupCQDSPmkm0")
+# Environment variable validation function
+def get_required_env(name):
+    """Get a required environment variable or exit with error"""
+    value = os.getenv(name)
+    if not value:
+        error_msg = f"ERROR: Required environment variable '{name}' is not set"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    return value
 
-# Coda API Details - using environment variables or direct assignment
-CODA_API_KEY = os.getenv("CODA_API_KEY", "3e92f721-91d1-485e-aab9-b7d50e4fa4da")
-DOC_ID = os.getenv("CODA_DOC_ID", "dNYzN0H9At4")
-TABLE_ID = os.getenv("CODA_TABLE_ID", "tun7MrAA")
-LINK_COLUMN_ID = os.getenv("CODA_LINK_COLUMN_ID", "c-LFekrYG0se")
+# Configuration with validation
+try:
+    # Telegram Bot Token (required)
+    BOT_TOKEN = get_required_env("TELEGRAM_BOT_TOKEN")
+    logger.info(f"Using Bot Token: {BOT_TOKEN[:5]}...{BOT_TOKEN[-5:]}")
 
-# Define a regex pattern for Instagram Reel links
+    # Coda API Details (all required)
+    CODA_API_KEY = get_required_env("CODA_API_KEY")
+    logger.info(f"Using Coda API Key: {CODA_API_KEY[:5]}...{CODA_API_KEY[-5:]}")
+    
+    DOC_ID = get_required_env("CODA_DOC_ID")
+    logger.info(f"Using Coda Doc ID: {DOC_ID}")
+    
+    TABLE_ID = get_required_env("CODA_TABLE_ID")
+    logger.info(f"Using Coda Table ID: {TABLE_ID}")
+    
+    LINK_COLUMN_ID = get_required_env("CODA_LINK_COLUMN_ID")
+    logger.info(f"Using Coda Link Column ID: {LINK_COLUMN_ID}")
+except ValueError as e:
+    logger.critical(f"Configuration error: {str(e)}")
+    sys.exit(1)
+
+# Non-critical configuration with sensible defaults
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
+logger.info(f"Environment: {ENVIRONMENT}")
+
+# Define a regex pattern for Instagram Reel links (non-sensitive default is fine)
 INSTAGRAM_REEL_PATTERN = r'https://(?:www\.)?instagram\.com/(?:reel|p)/[\w-]+/?'
+logger.info(f"Using Instagram pattern: {INSTAGRAM_REEL_PATTERN}")
 
 # Optional: List of authorized users (empty list means anyone can use the bot)
 AUTHORIZED_USERS = os.getenv("AUTHORIZED_USERS", "").split(",") if os.getenv("AUTHORIZED_USERS") else []
+logger.info(f"Authorized users: {len(AUTHORIZED_USERS)}")
 
 # Optional: Admin user IDs who can see statistics and manage the bot
 ADMIN_USERS = [int(id) for id in os.getenv("ADMIN_USERS", "").split(",") if id.strip()] if os.getenv("ADMIN_USERS") else []
+logger.info(f"Admin users: {len(ADMIN_USERS)}")
 
 # Initialize Telegram Bot
 bot = telebot.TeleBot(BOT_TOKEN)
+logger.info("Bot initialized successfully")
 
 @error_handler
 def send_to_coda(link, sender_info):
@@ -177,7 +209,7 @@ def send_version(message):
     
     version_info = (
         "🤖 DDF Reels Bot v1.1.0\n\n"
-        "💻 Environment: " + os.getenv("ENVIRONMENT", "production") + "\n"
+        "💻 Environment: " + ENVIRONMENT + "\n"
         "📝 Last updated: March 16, 2024\n"
         "🔧 Features:\n"
         "  - Instagram Reel link collection\n"
@@ -248,11 +280,6 @@ def main():
     print(f"DDF Reels Bot is running!")
     print(f"Bot username: @ddfreelsbot")
     print(f"Press Ctrl+C to stop the bot")
-    
-    # Log environment info
-    logger.info(f"Environment: {os.getenv('ENVIRONMENT', 'production')}")
-    logger.info(f"Authorized users: {len(AUTHORIZED_USERS)}")
-    logger.info(f"Admin users: {len(ADMIN_USERS)}")
     
     # Start the bot polling for new messages
     while True:
