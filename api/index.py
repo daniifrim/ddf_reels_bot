@@ -31,7 +31,7 @@ try:
     print(f"Using Bot Token: {BOT_TOKEN[:5]}...{BOT_TOKEN[-5:]}")
 
     # Coda API Details (all required)
-    CODA_API_KEY = get_required_env("CODA_API_KEY") 
+    CODA_API_KEY = get_required_env("CODA_API_KEY").strip()  # Strip whitespace
     print(f"Using Coda API Key: {CODA_API_KEY[:5]}...{CODA_API_KEY[-5:]}")
     
     DOC_ID = get_required_env("CODA_DOC_ID")
@@ -70,8 +70,12 @@ def send_to_coda(link):
     try:
         print(f"Sending link to Coda: {link}")
         url = f"https://coda.io/apis/v1/docs/{DOC_ID}/tables/{TABLE_ID}/rows"
+        
+        # Ensure API key doesn't have any whitespace
+        api_key = CODA_API_KEY.strip()
+        
         headers = {
-            "Authorization": f"Bearer {CODA_API_KEY}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
         
@@ -134,13 +138,14 @@ def webhook():
                     else:
                         response_text = f"❌ Failed to save link. Error: {result}. Please try again later."
                     
-                    response_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                    response_url = f"https://api.telegram.org/bot{BOT_TOKEN.strip()}/sendMessage"
                     response_params = {
                         "chat_id": chat_id,
                         "text": response_text
                     }
                     
                     print(f"Sending response to Telegram: {json.dumps(response_params)}")
+                    print(f"Using URL: {response_url}")
                     telegram_response = requests.post(response_url, json=response_params)
                     print(f"Telegram response: {telegram_response.status_code} - {telegram_response.text}")
                 else:
@@ -148,13 +153,14 @@ def webhook():
                     chat_id = data['message']['chat']['id']
                     response_text = "❓ I didn't recognize any Instagram links in your message.\n\nPlease send a valid Instagram link that starts with https://instagram.com/ or https://www.instagram.com/"
                     
-                    response_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                    response_url = f"https://api.telegram.org/bot{BOT_TOKEN.strip()}/sendMessage"
                     response_params = {
                         "chat_id": chat_id,
                         "text": response_text
                     }
                     
                     print(f"Sending response to Telegram: {json.dumps(response_params)}")
+                    print(f"Using URL: {response_url}")
                     telegram_response = requests.post(response_url, json=response_params)
                     print(f"Telegram response: {telegram_response.status_code} - {telegram_response.text}")
             
