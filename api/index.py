@@ -15,18 +15,25 @@ app = Flask(__name__)
 
 # Telegram Bot Token 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7780725841:AAEkNzWjmG6jr2wDCS5w--YjupCQDSPmkm0")
+print(f"Using Bot Token: {BOT_TOKEN[:5]}...{BOT_TOKEN[-5:]}")
 
 # Coda API Details
 CODA_API_KEY = os.getenv("CODA_API_KEY", "3e92f721-91d1-485e-aab9-b7d50e4fa4da")
+print(f"Using Coda API Key: {CODA_API_KEY[:5]}...{CODA_API_KEY[-5:]}")
 DOC_ID = os.getenv("CODA_DOC_ID", "dNYzN0H9At4")
+print(f"Using Coda Doc ID: {DOC_ID}")
 TABLE_ID = os.getenv("CODA_TABLE_ID", "tun7MrAA")
+print(f"Using Coda Table ID: {TABLE_ID}")
 LINK_COLUMN_ID = os.getenv("CODA_LINK_COLUMN_ID", "c-LFekrYG0se")
+print(f"Using Coda Link Column ID: {LINK_COLUMN_ID}")
 
 # Define a regex pattern for any Instagram link
 INSTAGRAM_PATTERN = r'https://(?:www\.)?instagram\.com/[^\s"]+(?:\?[^\s"]*)?'
 
 # Initialize Telegram Bot
+print("Initializing Telegram Bot")
 bot = telebot.TeleBot(BOT_TOKEN)
+print("Bot initialized successfully")
 
 def send_to_coda(link, sender_info):
     """
@@ -82,6 +89,7 @@ def send_welcome(message):
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     """Handle all incoming messages and check for Instagram links"""
+    print("*** handle_message function was called ***")
     # Extract the message text and sender information
     text = message.text.strip()
     sender = message.from_user.username or message.from_user.first_name or "Unknown"
@@ -152,10 +160,25 @@ def webhook():
                 
             print(f"Received update: {update}")
             
-            # Process the update
+            # Process the update with better error handling
             print("About to process update with bot.process_new_updates")
-            bot.process_new_updates([update])
-            print("Finished processing update")
+            try:
+                bot.process_new_updates([update])
+                print("Finished processing update")
+            except Exception as e:
+                print(f"ERROR in process_new_updates: {str(e)}")
+                print(f"Traceback for process_new_updates error: {traceback.format_exc()}")
+                
+                # Attempt to handle the message directly as a fallback
+                print("Trying to handle message directly")
+                try:
+                    if hasattr(update, 'message') and update.message:
+                        handle_message(update.message)
+                        print("Handled message directly")
+                except Exception as direct_e:
+                    print(f"ERROR in direct handle_message: {str(direct_e)}")
+                    print(f"Traceback for direct handle: {traceback.format_exc()}")
+            
             return '', 200
             
         except Exception as e:
