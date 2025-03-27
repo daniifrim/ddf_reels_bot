@@ -4,6 +4,7 @@ import telebot
 import requests
 import re
 import traceback
+import sys
 from flask import Flask, request, Response
 from dotenv import load_dotenv
 
@@ -13,21 +14,41 @@ load_dotenv()
 # Initialize Flask app for Vercel serverless function
 app = Flask(__name__)
 
-# Telegram Bot Token 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7780725841:AAEkNzWjmG6jr2wDCS5w--YjupCQDSPmkm0")
-print(f"Using Bot Token: {BOT_TOKEN[:5]}...{BOT_TOKEN[-5:]}")
+# Environment variable validation function
+def get_required_env(name):
+    """Get a required environment variable or exit with error"""
+    value = os.getenv(name)
+    if not value:
+        error_msg = f"ERROR: Required environment variable '{name}' is not set"
+        print(error_msg, file=sys.stderr)
+        raise ValueError(error_msg)
+    return value
 
-# Coda API Details
-CODA_API_KEY = os.getenv("CODA_API_KEY", "3e92f721-91d1-485e-aab9-b7d50e4fa4da")
-print(f"Using Coda API Key: {CODA_API_KEY[:5]}...{CODA_API_KEY[-5:]}")
-DOC_ID = os.getenv("CODA_DOC_ID", "dNYzN0H9At4")
-print(f"Using Coda Doc ID: {DOC_ID}")
-TABLE_ID = os.getenv("CODA_TABLE_ID", "grid-tun7MrAA")
-print(f"Using Coda Table ID: {TABLE_ID}")
-LINK_COLUMN_ID = os.getenv("CODA_LINK_COLUMN_ID", "c-LFekrYG0se")
-print(f"Using Coda Link Column ID: {LINK_COLUMN_ID}")
+# Configuration with validation
+try:
+    # Telegram Bot Token (required)
+    BOT_TOKEN = get_required_env("TELEGRAM_BOT_TOKEN")
+    print(f"Using Bot Token: {BOT_TOKEN[:5]}...{BOT_TOKEN[-5:]}")
 
-# Define a regex pattern for any Instagram link
+    # Coda API Details (all required)
+    CODA_API_KEY = get_required_env("CODA_API_KEY") 
+    print(f"Using Coda API Key: {CODA_API_KEY[:5]}...{CODA_API_KEY[-5:]}")
+    
+    DOC_ID = get_required_env("CODA_DOC_ID")
+    print(f"Using Coda Doc ID: {DOC_ID}")
+    
+    TABLE_ID = get_required_env("CODA_TABLE_ID")
+    print(f"Using Coda Table ID: {TABLE_ID}")
+    
+    LINK_COLUMN_ID = get_required_env("CODA_LINK_COLUMN_ID")
+    print(f"Using Coda Link Column ID: {LINK_COLUMN_ID}")
+except ValueError as e:
+    # In production, this will cause the server to fail fast with a clear error
+    print(f"Configuration error: {str(e)}")
+    if __name__ != "__main__":  # Only exit if not in local development
+        sys.exit(1)
+
+# Define a regex pattern for any Instagram link (non-sensitive default is fine)
 INSTAGRAM_PATTERN = r'https://(?:www\.)?instagram\.com/(?:[^/\s"]+/)*[^/\s"]+/?(?:\?[^\s"]*)?'
 print(f"Using Instagram pattern: {INSTAGRAM_PATTERN}")
 
@@ -158,7 +179,7 @@ def index():
 
 # This will be ignored by Vercel but can be used for local testing
 if __name__ == "__main__":
-    # Set webhook URL for your Vercel deployment
+    # Set webhook URL for your Vercel deployment (optional)
     WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
     
     if WEBHOOK_URL:

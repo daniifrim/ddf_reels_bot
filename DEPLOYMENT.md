@@ -1,6 +1,111 @@
-# Deploying DDF Reels Bot to Vercel
+# Deployment Guide for DDF Reels Bot
 
-This guide will walk you through the process of deploying the DDF Reels Bot to Vercel for serverless operation.
+This guide explains how to properly deploy the DDF Reels Bot to Vercel with the correct environment setup.
+
+## Required Environment Variables
+
+The bot requires the following environment variables to function properly:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `TELEGRAM_BOT_TOKEN` | Telegram bot API token | `123456789:ABCDefGhIJKlmnOPQRstUVwxyz` |
+| `CODA_API_KEY` | Coda API key | `3e92f721-91d1-485e-aab9-b7d50e4fa4da` |
+| `CODA_DOC_ID` | Coda document ID | `NYzN0H9At4` |
+| `CODA_TABLE_ID` | Coda table ID | `grid-Pyccn7MrAA` |
+| `CODA_LINK_COLUMN_ID` | Column ID for links | `c-LFekrYG0se` |
+
+## Optional Environment Variables
+
+These variables are optional and have sensible defaults:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ENVIRONMENT` | Environment name | `production` |
+| `AUTHORIZED_USERS` | Comma-separated list of usernames | *empty* (all users allowed) |
+| `ADMIN_USERS` | Comma-separated list of telegram user IDs | *empty* (no admins) |
+| `LOG_LEVEL` | Logging level | `INFO` |
+| `WEBHOOK_URL` | Webhook URL for Telegram | *required for webhook mode* |
+
+## Setting up Environment Variables on Vercel
+
+### Method 1: Using the Vercel Dashboard
+
+1. Go to your project on the Vercel dashboard
+2. Navigate to Settings > Environment Variables
+3. Add each required environment variable
+4. Deploy or redeploy your project
+
+### Method 2: Using Vercel CLI
+
+Create a `.env` file locally with all your environment variables:
+
+```
+TELEGRAM_BOT_TOKEN=your_bot_token
+CODA_API_KEY=your_coda_api_key
+CODA_DOC_ID=your_doc_id
+CODA_TABLE_ID=your_table_id
+CODA_LINK_COLUMN_ID=your_column_id
+```
+
+Then use Vercel CLI to set these variables:
+
+```bash
+# First login to Vercel
+vercel login
+
+# Pull existing environment variables and merge with your local .env
+vercel env pull
+
+# Add each environment variable
+cat .env | while IFS= read -r line; do
+  if [[ $line != \#* && $line != "" ]]; then
+    key=$(echo $line | cut -d= -f1)
+    value=$(echo $line | cut -d= -f2-)
+    echo "Adding $key..."
+    echo $value | vercel env add $key production
+  fi
+done
+
+# Deploy with the updated environment
+vercel --prod
+```
+
+## Testing Your Deployment
+
+After deployment, you should test your bot:
+
+1. Send a message to your bot on Telegram
+2. Try sending an Instagram link
+3. Check your Coda database to verify the link was saved
+
+## Troubleshooting
+
+### 1. Environment Variable Issues
+
+If your bot fails with environment variable errors, check:
+- That all required variables are properly set
+- There are no typos in the variable names
+- The values are correctly formatted (especially the Coda IDs)
+
+### 2. Coda 404 Errors
+
+If you get a 404 error when saving to Coda:
+- Verify the `CODA_DOC_ID` - should NOT include any "d" prefix
+- Check that `CODA_TABLE_ID` includes the full ID (e.g., `grid-Pyccn7MrAA` not just `Pyccn7MrAA`)
+- Ensure your Coda API key has access to the document
+
+### 3. Telegram Webhook Issues
+
+If the bot isn't responding to messages:
+- Verify the webhook is properly set
+- Check Vercel logs for any errors
+- Ensure the Telegram bot token is correct
+
+## Security Notes
+
+- Never commit your `.env` file or any files containing sensitive tokens to version control
+- Use environment secrets in CI/CD pipelines instead of hardcoded values
+- Regularly rotate your API keys for better security
 
 ## Why Vercel?
 
@@ -91,15 +196,6 @@ https://api.telegram.org/bot7780725841:AAEkNzWjmG6jr2wDCS5w--YjupCQDSPmkm0/setWe
 1. Open Telegram and start a conversation with your bot (@ddfreelsbot)
 2. Send a message like `/start` to check if the bot responds
 3. Send an Instagram Reel link to test the full functionality
-
-## Troubleshooting
-
-If you encounter issues:
-
-- **Bot not responding**: Check the Vercel function logs to see if there are any errors
-- **Webhook errors**: Make sure you've set the correct URL in the webhook setup
-- **Environment variables**: Verify all environment variables are set correctly in Vercel
-- **Deployment issues**: Check if the build was successful in the Vercel dashboard
 
 ## Updating the Bot
 
