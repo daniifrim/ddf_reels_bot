@@ -114,6 +114,9 @@ def webhook():
     if request.method == 'POST':
         try:
             print(f"Request headers: {request.headers}")
+            print(f"Request remote_addr: {request.remote_addr}")
+            print(f"Request environment: {request.environ}")
+            
             data = request.get_json(force=True)
             print(f"Received data: {json.dumps(data)}")
             

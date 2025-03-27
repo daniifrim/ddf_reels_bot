@@ -6,15 +6,9 @@
       "use": "@vercel/python"
     }
   ],
-  "routes": [
-    {
-      "src": "/api/webhook",
-      "dest": "/api/index.py",
-      "methods": ["POST"]
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/api/index.py"
-    }
-  ]
+  "rewrites": [
+    { "source": "/api/webhook", "destination": "/api/index.py" },
+    { "source": "/(.*)", "destination": "/api/index.py" }
+  ],
+  "public": true
 } 
