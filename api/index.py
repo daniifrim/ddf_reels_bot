@@ -17,8 +17,9 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7780725841:AAEkNzWjmG6jr2wDCS5w--Yj
 
 # Coda API Details
 CODA_API_KEY = os.getenv("CODA_API_KEY", "3e92f721-91d1-485e-aab9-b7d50e4fa4da")
-DOC_ID = os.getenv("CODA_DOC_ID", "NYzN0H9At4")
-TABLE_ID = os.getenv("CODA_TABLE_ID", "grid-Pyccn7MrAA")
+DOC_ID = os.getenv("CODA_DOC_ID", "dNYzN0H9At4")
+TABLE_ID = os.getenv("CODA_TABLE_ID", "tun7MrAA")
+LINK_COLUMN_ID = os.getenv("CODA_LINK_COLUMN_ID", "c-LFekrYG0se")
 
 # Define a regex pattern for any Instagram link
 INSTAGRAM_PATTERN = r'https://(?:www\.)?instagram\.com/[^\s"]+(?:\?[^\s"]*)?'
@@ -44,12 +45,12 @@ def send_to_coda(link, sender_info):
             "Content-Type": "application/json"
         }
         
-        # Prepare the data to be sent to Coda using column name
+        # Prepare the data to be sent to Coda using column ID
         body = {
             "rows": [
                 {
                     "cells": [
-                        {"column": "Link", "value": link}
+                        {"column": LINK_COLUMN_ID, "value": link}
                     ]
                 }
             ]
