@@ -1,28 +1,12 @@
 import os
 import telebot
-import requests
-import time
-import re
-import logging
 import sys
-from dotenv import load_dotenv
-from monitoring import setup_logging, monitor, error_handler
+import logging
+from src.utils import get_required_env, extract_instagram_links, send_to_coda
+from src.monitoring import setup_logging, monitor, error_handler
 
 # Configure logging using our enhanced logging setup
 logger = setup_logging()
-
-# Load environment variables from .env file if it exists
-load_dotenv()
-
-# Environment variable validation function
-def get_required_env(name):
-    """Get a required environment variable or exit with error"""
-    value = os.getenv(name)
-    if not value:
-        error_msg = f"ERROR: Required environment variable '{name}' is not set"
-        logger.error(error_msg)
-        raise ValueError(error_msg)
-    return value
 
 # Configuration with validation
 try:
@@ -39,9 +23,6 @@ try:
     
     TABLE_ID = get_required_env("CODA_TABLE_ID")
     logger.info(f"Using Coda Table ID: {TABLE_ID}")
-    
-    LINK_COLUMN_ID = get_required_env("CODA_LINK_COLUMN_ID")
-    logger.info(f"Using Coda Link Column ID: {LINK_COLUMN_ID}")
 except ValueError as e:
     logger.critical(f"Configuration error: {str(e)}")
     sys.exit(1)
@@ -49,10 +30,6 @@ except ValueError as e:
 # Non-critical configuration with sensible defaults
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 logger.info(f"Environment: {ENVIRONMENT}")
-
-# Define a regex pattern for Instagram Reel links (non-sensitive default is fine)
-INSTAGRAM_REEL_PATTERN = r'https://(?:www\.)?instagram\.com/(?:reel|p)/[\w-]+/?'
-logger.info(f"Using Instagram pattern: {INSTAGRAM_REEL_PATTERN}")
 
 # Optional: List of authorized users (empty list means anyone can use the bot)
 AUTHORIZED_USERS = os.getenv("AUTHORIZED_USERS", "").split(",") if os.getenv("AUTHORIZED_USERS") else []
@@ -65,58 +42,6 @@ logger.info(f"Admin users: {len(ADMIN_USERS)}")
 # Initialize Telegram Bot
 bot = telebot.TeleBot(BOT_TOKEN)
 logger.info("Bot initialized successfully")
-
-@error_handler
-def send_to_coda(link, sender_info):
-    """
-    Send Instagram reel link to Coda database
-    
-    Args:
-        link: The Instagram reel link
-        sender_info: Information about the sender (username or first name)
-    
-    Returns:
-        Tuple of (success_boolean, status_code_or_error_message)
-    """
-    try:
-        url = f"https://coda.io/apis/v1/docs/{DOC_ID}/tables/{TABLE_ID}/rows"
-        headers = {
-            "Authorization": f"Bearer {CODA_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        # Prepare the data to be sent to Coda
-        body = {
-            "rows": [
-                {
-                    "cells": [
-                        {"column": LINK_COLUMN_ID, "value": link},
-                        # You can add additional columns here if needed:
-                        # {"column": "SOME_COLUMN_ID", "value": sender_info}
-                    ]
-                }
-            ]
-        }
-        
-        logger.info(f"Sending link to Coda: {link} from {sender_info}")
-        response = requests.post(url, json=body, headers=headers)
-        response.raise_for_status()  # Raise an exception for 4XX/5XX responses
-        
-        logger.info(f"Successfully saved link to Coda. Status code: {response.status_code}")
-        
-        # Update monitoring stats
-        monitor.record_successful_submission()
-        
-        return True, response.status_code
-    
-    except requests.exceptions.RequestException as e:
-        error_msg = f"Error sending to Coda: {str(e)}"
-        logger.error(error_msg)
-        
-        # Update monitoring stats
-        monitor.record_failed_submission()
-        
-        return False, error_msg
 
 def is_authorized(user_id, username):
     """Check if the user is authorized to use the bot"""
@@ -134,6 +59,28 @@ def is_authorized(user_id, username):
 def is_admin(user_id):
     """Check if user is an admin"""
     return user_id in ADMIN_USERS
+
+@error_handler
+def process_instagram_link(link, sender_info):
+    """Process an Instagram link and save it to Coda"""
+    # Create coda config from environment variables
+    coda_config = {
+        "api_key": CODA_API_KEY,
+        "doc_id": DOC_ID,
+        "table_id": TABLE_ID,
+        "column_name": "Link"  # Use column name for stability
+    }
+    
+    # Send to Coda using the shared utility
+    success, result = send_to_coda(link, coda_config)
+    
+    # Update monitoring stats
+    if success:
+        monitor.record_successful_submission()
+    else:
+        monitor.record_failed_submission()
+    
+    return success, result
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
@@ -207,49 +154,45 @@ def send_version(message):
         )
         return
     
+    # Get version info
     version_info = (
-        "🤖 DDF Reels Bot v1.1.0\n\n"
-        "💻 Environment: " + ENVIRONMENT + "\n"
-        "📝 Last updated: March 16, 2024\n"
-        "🔧 Features:\n"
-        "  - Instagram Reel link collection\n"
-        "  - Coda database integration\n"
-        "  - Bot statistics\n"
-        "  - User authorization\n"
-        "  - Error monitoring\n\n"
-        "📊 Running since: " + monitor.start_time.strftime("%Y-%m-%d %H:%M:%S")
-    )
+        "🤖 DDF Reels Bot v1.0.0\n"
+        "Environment: {}\n"
+        "Built with ❤️ for DDF\n"
+    ).format(ENVIRONMENT)
     
     bot.reply_to(message, version_info)
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    """Handle all incoming messages and check for Instagram Reel links"""
+    """Handle all incoming messages and check for Instagram links"""
     # Update monitoring stats
     monitor.record_message()
     
     # Extract the message text and sender information
     text = message.text.strip()
-    sender = message.from_user.username or message.from_user.first_name or "Unknown"
-    sender_id = message.from_user.id
+    user_id = message.from_user.id
+    username = message.from_user.username
     
     # Check if user is authorized
-    if not is_authorized(sender_id, sender):
+    if not is_authorized(user_id, username):
         bot.reply_to(
             message,
             "⛔ You are not authorized to use this bot. Please contact the administrator."
         )
         return
-    
-    # Use regex to find all Instagram reel links in the message
-    reel_links = re.findall(INSTAGRAM_REEL_PATTERN, text)
-    
-    if reel_links:
-        # Update monitoring stats
-        monitor.record_valid_link()
         
-        for link in reel_links:
-            success, result = send_to_coda(link, sender)
+    sender = username or message.from_user.first_name or "Unknown"
+    logger.info(f"Received message from {sender}: {text[:50]}...")
+    
+    # Extract Instagram links using regex
+    instagram_links = extract_instagram_links(text)
+    
+    if instagram_links:
+        logger.info(f"Found {len(instagram_links)} Instagram links")
+        
+        for link in instagram_links:
+            success, result = process_instagram_link(link, sender)
             
             if success:
                 bot.reply_to(
@@ -262,36 +205,21 @@ def handle_message(message):
                     f"❌ Failed to save link. Error: {result}. Please try again later."
                 )
     else:
-        # Update monitoring stats
-        monitor.record_invalid_link()
-        
+        logger.info("No Instagram links found in message")
         bot.reply_to(
             message,
-            "❓ I didn't recognize any Instagram Reel links in your message.\n\n"
-            "Please send a valid Instagram Reel link that looks like:\n"
-            "https://www.instagram.com/reel/ABC123/"
+            "❓ I didn't recognize any Instagram links in your message.\n\n"
+            "Please send a valid Instagram link that starts with https://instagram.com/ or https://www.instagram.com/"
         )
 
-def main():
-    """Main function to start the bot"""
-    logger.info("Starting DDF Reels Bot...")
+def run_polling():
+    """Start the bot in polling mode"""
+    # First, remove any webhook
+    bot.remove_webhook()
     
-    # Print a message with instructions
-    print(f"DDF Reels Bot is running!")
-    print(f"Bot username: @ddfreelsbot")
-    print(f"Press Ctrl+C to stop the bot")
-    
-    # Start the bot polling for new messages
-    while True:
-        try:
-            bot.polling(none_stop=True, timeout=60)
-        except Exception as e:
-            # Log the error and update monitoring stats
-            logger.error(f"Bot polling error: {str(e)}")
-            monitor.record_error(e, "Polling Error")
-            
-            # Wait before retrying
-            time.sleep(10)
+    logger.info("Starting bot in polling mode...")
+    # Start polling
+    bot.polling(none_stop=True, interval=0)
 
 if __name__ == "__main__":
-    main() 
+    run_polling() 

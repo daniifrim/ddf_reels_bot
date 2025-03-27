@@ -1,28 +1,21 @@
 import os
 import json
 import telebot
-import requests
-import re
 import traceback
 import sys
 from flask import Flask, request, Response, jsonify
 from dotenv import load_dotenv
+
+# Import our shared utility functions
+# Use relative imports for Vercel compatibility
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.utils import get_required_env, extract_instagram_links, send_to_coda
 
 # Load environment variables
 load_dotenv()
 
 # Initialize Flask app for Vercel serverless function
 app = Flask(__name__)
-
-# Environment variable validation function
-def get_required_env(name):
-    """Get a required environment variable or exit with error"""
-    value = os.getenv(name)
-    if not value:
-        error_msg = f"ERROR: Required environment variable '{name}' is not set"
-        print(error_msg, file=sys.stderr)
-        raise ValueError(error_msg)
-    return value
 
 # Configuration with validation
 try:
@@ -39,88 +32,16 @@ try:
     
     TABLE_ID = get_required_env("CODA_TABLE_ID")
     print(f"Using Coda Table ID: {TABLE_ID}")
-    
-    LINK_COLUMN_ID = get_required_env("CODA_LINK_COLUMN_ID")
-    print(f"Using Coda Link Column ID: {LINK_COLUMN_ID}")
 except ValueError as e:
     # In production, this will cause the server to fail fast with a clear error
     print(f"Configuration error: {str(e)}")
     if __name__ != "__main__":  # Only exit if not in local development
         sys.exit(1)
 
-# Define a regex pattern for any Instagram link (non-sensitive default is fine)
-INSTAGRAM_PATTERN = r'https?://(?:www\.)?instagram\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+/?(?:\?[^\s]*)?'
-print(f"Using Instagram pattern: {INSTAGRAM_PATTERN}")
-
 # Initialize Telegram Bot
 print("Initializing Telegram Bot")
 bot = telebot.TeleBot(BOT_TOKEN)
 print("Bot initialized successfully")
-
-def send_to_coda(link):
-    """
-    Send the Instagram link to the Coda database.
-    """
-    # Use the exact same values from test_coda_direct.py that we know work
-    api_key = "3e92f721-91d1-485e-aab9-b7d50e4fa4da"
-    doc_id = "NYzN0H9At4" 
-    table_id = "grid-Pyccn7MrAA"
-    
-    # Debug prints to troubleshoot
-    print(f"Using hardcoded values from test_coda_direct.py")
-    print(f"Doc ID: {doc_id}")
-    print(f"Table ID: {table_id}")
-    
-    url = f"https://coda.io/apis/v1/docs/{doc_id}/tables/{table_id}/rows"
-    auth_header = f"Bearer {api_key}"
-    print(f"Auth header format: Bearer {api_key[:5]}...")
-    
-    headers = {
-        'Authorization': auth_header,
-        'Content-Type': 'application/json'
-    }
-    
-    # Use hardcoded "Link" to match the working test
-    body = {
-        "rows": [
-            {
-                "cells": [
-                    {"column": "Link", "value": link}
-                ]
-            }
-        ]
-    }
-    
-    print(f"Request body: {body}")
-    print(f"Request URL: {url}")
-    print(f"Request headers: {headers}")
-    
-    try:
-        response = requests.post(url, headers=headers, json=body)
-        print(f"Response status: {response.status_code}")
-        
-        # Add detailed response debugging
-        response_text = response.text[:500]  # Get first 500 chars to avoid huge logs
-        print(f"Response first 500 chars: {response_text}")
-        
-        # Check if the response is HTML (login page) instead of JSON (API response)
-        if "<!DOCTYPE html>" in response_text or "<html" in response_text:
-            print("Error: Received HTML response instead of API response. Authentication failed.")
-            return False
-            
-        if response.status_code == 202:
-            print("Link successfully added to Coda")
-            return True
-        else:
-            print(f"Failed to add link to Coda: {response.text}")
-            return False
-    except Exception as e:
-        print(f"Exception when sending to Coda: {e}")
-        return False
-
-def extract_instagram_links(text):
-    """Extract Instagram links from text using regex."""
-    return re.findall(INSTAGRAM_PATTERN, text)
 
 def send_telegram_message(chat_id, text):
     """Send a message to a Telegram chat."""
@@ -172,7 +93,7 @@ def webhook():
             
         print(f"Received message: {text}")
         
-        # Extract Instagram links using regex
+        # Extract Instagram links using shared utility function
         instagram_links = extract_instagram_links(text)
         print(f"Extracted Instagram links: {instagram_links}")
         
@@ -181,10 +102,18 @@ def webhook():
             send_telegram_message(chat_id, "I don't recognize any Instagram links in your message. Please send a valid Instagram link.")
             return jsonify({"status": "success", "message": "No Instagram links found"}), 200
         
+        # Create coda config from environment variables
+        coda_config = {
+            "api_key": CODA_API_KEY,
+            "doc_id": DOC_ID,
+            "table_id": TABLE_ID,
+            "column_name": "Link"  # Use column name for stability
+        }
+        
         # Process each link
         success_count = 0
         for link in instagram_links:
-            success = send_to_coda(link)
+            success, _ = send_to_coda(link, coda_config)
             
             if success:
                 success_count += 1

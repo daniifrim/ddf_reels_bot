@@ -4,4 +4,8 @@ python-dotenv==1.0.0
 Flask==2.3.3
 # New dependencies for enhanced monitoring
 psutil==5.9.5  # For system resource monitoring
-python-json-logger==2.0.7  # Better JSON logging support 
+python-json-logger==2.0.7  # Better JSON logging support
+
+# Development dependencies
+pytest==7.4.0
+pytest-cov==4.1.0 
