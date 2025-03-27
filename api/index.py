@@ -5,7 +5,7 @@ import requests
 import re
 import traceback
 import sys
-from flask import Flask, request, Response
+from flask import Flask, request, Response, jsonify
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -49,7 +49,7 @@ except ValueError as e:
         sys.exit(1)
 
 # Define a regex pattern for any Instagram link (non-sensitive default is fine)
-INSTAGRAM_PATTERN = r'https://(?:www\.)?instagram\.com/(?:[^/\s"]+/)*[^/\s"]+/?(?:\?[^\s"]*)?'
+INSTAGRAM_PATTERN = r'https?://(?:www\.)?instagram\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+/?(?:\?[^\s]*)?'
 print(f"Using Instagram pattern: {INSTAGRAM_PATTERN}")
 
 # Initialize Telegram Bot
@@ -59,132 +59,154 @@ print("Bot initialized successfully")
 
 def send_to_coda(link):
     """
-    Send Instagram link to Coda database
-    
-    Args:
-        link: The Instagram link
-    
-    Returns:
-        Tuple of (success_boolean, status_code_or_error_message)
+    Send the Instagram link to the Coda database.
     """
-    try:
-        print(f"Sending link to Coda: {link}")
-        url = f"https://coda.io/apis/v1/docs/{DOC_ID}/tables/{TABLE_ID}/rows"
-        
-        # Ensure API key doesn't have any whitespace
-        api_key = CODA_API_KEY.strip()
-        
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        # Use the environment variable LINK_COLUMN_ID which now has the value "Link"
-        body = {
-            "rows": [
-                {
-                    "cells": [
-                        {"column": LINK_COLUMN_ID, "value": link}
-                    ]
-                }
-            ]
-        }
-        
-        print(f"Request body: {json.dumps(body)}")
-        response = requests.post(url, json=body, headers=headers)
-        print(f"Response status: {response.status_code}")
-        print(f"Response body: {response.text}")
-        response.raise_for_status()  # Raise an exception for 4XX/5XX responses
-        
-        print(f"Successfully saved link to Coda. Status code: {response.status_code}")
-        return True, response.status_code
+    # Use the exact same values from test_coda_direct.py that we know work
+    api_key = "3e92f721-91d1-485e-aab9-b7d50e4fa4da"
+    doc_id = "NYzN0H9At4" 
+    table_id = "grid-Pyccn7MrAA"
     
+    # Debug prints to troubleshoot
+    print(f"Using hardcoded values from test_coda_direct.py")
+    print(f"Doc ID: {doc_id}")
+    print(f"Table ID: {table_id}")
+    
+    url = f"https://coda.io/apis/v1/docs/{doc_id}/tables/{table_id}/rows"
+    auth_header = f"Bearer {api_key}"
+    print(f"Auth header format: Bearer {api_key[:5]}...")
+    
+    headers = {
+        'Authorization': auth_header,
+        'Content-Type': 'application/json'
+    }
+    
+    # Use hardcoded "Link" to match the working test
+    body = {
+        "rows": [
+            {
+                "cells": [
+                    {"column": "Link", "value": link}
+                ]
+            }
+        ]
+    }
+    
+    print(f"Request body: {body}")
+    print(f"Request URL: {url}")
+    print(f"Request headers: {headers}")
+    
+    try:
+        response = requests.post(url, headers=headers, json=body)
+        print(f"Response status: {response.status_code}")
+        
+        # Add detailed response debugging
+        response_text = response.text[:500]  # Get first 500 chars to avoid huge logs
+        print(f"Response first 500 chars: {response_text}")
+        
+        # Check if the response is HTML (login page) instead of JSON (API response)
+        if "<!DOCTYPE html>" in response_text or "<html" in response_text:
+            print("Error: Received HTML response instead of API response. Authentication failed.")
+            return False
+            
+        if response.status_code == 202:
+            print("Link successfully added to Coda")
+            return True
+        else:
+            print(f"Failed to add link to Coda: {response.text}")
+            return False
     except Exception as e:
-        error_msg = f"Error sending to Coda: {str(e)}"
-        print(error_msg)
-        print(f"Traceback: {traceback.format_exc()}")
-        return False, error_msg
+        print(f"Exception when sending to Coda: {e}")
+        return False
+
+def extract_instagram_links(text):
+    """Extract Instagram links from text using regex."""
+    return re.findall(INSTAGRAM_PATTERN, text)
+
+def send_telegram_message(chat_id, text):
+    """Send a message to a Telegram chat."""
+    bot_token = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+    
+    if not bot_token:
+        print("Error: No Telegram bot token found in environment variables")
+        return False
+        
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text
+    }
+    
+    try:
+        response = requests.post(url, json=payload)
+        print(f"Telegram response: {response.status_code} - {response.text}")
+        return response.status_code == 200
+    except Exception as e:
+        print(f"Error sending Telegram message: {e}")
+        return False
 
 # Process webhook calls - this is the endpoint Vercel will expose
 @app.route('/api/webhook', methods=['POST'])
 def webhook():
-    """Handle webhook calls from Telegram"""
+    """
+    Handle incoming webhook from Telegram.
+    Extract Instagram links and save them to Coda.
+    """
     print("Webhook endpoint called")
     
-    if request.method == 'POST':
-        try:
-            print(f"Request headers: {request.headers}")
-            print(f"Request remote_addr: {request.remote_addr}")
-            print(f"Request environment: {request.environ}")
+    # Parse the incoming JSON data
+    try:
+        data = request.json
+    except Exception as e:
+        print(f"Failed to parse JSON: {e}")
+        return jsonify({"status": "error", "message": "Invalid JSON payload"}), 400
+    
+    # Extract message text from webhook data
+    try:
+        message = data.get('message', {})
+        text = message.get('text', '')
+        chat_id = message.get('chat', {}).get('id')
+        
+        if not chat_id:
+            print("No chat_id found in webhook data")
+            return jsonify({"status": "error", "message": "No chat_id found"}), 400
             
-            data = request.get_json(force=True)
-            print(f"Received data: {json.dumps(data)}")
+        print(f"Received message: {text}")
+        
+        # Extract Instagram links using regex
+        instagram_links = extract_instagram_links(text)
+        print(f"Extracted Instagram links: {instagram_links}")
+        
+        if not instagram_links:
+            print("No Instagram links found in message")
+            send_telegram_message(chat_id, "I don't recognize any Instagram links in your message. Please send a valid Instagram link.")
+            return jsonify({"status": "success", "message": "No Instagram links found"}), 200
+        
+        # Process each link
+        success_count = 0
+        for link in instagram_links:
+            success = send_to_coda(link)
             
-            # Extract message from the update
-            if 'message' in data and 'text' in data['message']:
-                message_text = data['message']['text']
-                print(f"Extracted message text: {message_text}")
-                
-                # Search for Instagram links
-                links = re.findall(INSTAGRAM_PATTERN, message_text)
-                print(f"Found Instagram links: {links}")
-                
-                if links:
-                    # Save link to Coda
-                    link = links[0]  # Take the first link
-                    success, result = send_to_coda(link)
-                    
-                    # Send response back to user via Telegram API directly
-                    chat_id = data['message']['chat']['id']
-                    if success:
-                        response_text = "✅ Link saved successfully to the DDF database!"
-                    else:
-                        response_text = f"❌ Failed to save link. Error: {result}. Please try again later."
-                    
-                    response_url = f"https://api.telegram.org/bot{BOT_TOKEN.strip()}/sendMessage"
-                    response_params = {
-                        "chat_id": chat_id,
-                        "text": response_text
-                    }
-                    
-                    print(f"Sending response to Telegram: {json.dumps(response_params)}")
-                    print(f"Using URL: {response_url}")
-                    telegram_response = requests.post(response_url, json=response_params)
-                    print(f"Telegram response: {telegram_response.status_code} - {telegram_response.text}")
-                else:
-                    # No Instagram links found
-                    chat_id = data['message']['chat']['id']
-                    response_text = "❓ I didn't recognize any Instagram links in your message.\n\nPlease send a valid Instagram link that starts with https://instagram.com/ or https://www.instagram.com/"
-                    
-                    response_url = f"https://api.telegram.org/bot{BOT_TOKEN.strip()}/sendMessage"
-                    response_params = {
-                        "chat_id": chat_id,
-                        "text": response_text
-                    }
-                    
-                    print(f"Sending response to Telegram: {json.dumps(response_params)}")
-                    print(f"Using URL: {response_url}")
-                    telegram_response = requests.post(response_url, json=response_params)
-                    print(f"Telegram response: {telegram_response.status_code} - {telegram_response.text}")
+            if success:
+                success_count += 1
             
-            return '', 200
+        # Send response back to user
+        if success_count > 0:
+            send_telegram_message(chat_id, "✅ Link saved successfully to the DDF database!")
+        else:
+            send_telegram_message(chat_id, "❌ Failed to save link to the database. Please try again later or contact support.")
+        
+        return jsonify({"status": "success", "message": f"Processed {len(instagram_links)} links, saved {success_count} successfully"}), 200
             
-        except Exception as e:
-            print(f"Error processing webhook: {str(e)}")
-            print(f"Traceback: {traceback.format_exc()}")
-            return '', 500
-            
-    return '', 403
+    except Exception as e:
+        print(f"Error in webhook handler: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({"status": "error", "message": f"Failed to process webhook: {str(e)}"}), 500
 
 # The main entry point for Vercel
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/', methods=['GET'])
 def index():
-    if request.method == 'POST':
-        # If POST request, process as webhook
-        return webhook()
-    else:
-        # For GET requests, return a simple confirmation page
-        return "DDF Reels Bot is running! This is the webhook endpoint for the Telegram bot."
+    """Root endpoint for health check"""
+    return {"status": "ok", "message": "Bot is running"}
 
 # This will be ignored by Vercel but can be used for local testing
 if __name__ == "__main__":
