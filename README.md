@@ -1,6 +1,6 @@
 # DDF Reels Bot
 
-A Telegram bot for collecting Instagram links and saving them to a Coda database.
+A Telegram bot for collecting Instagram links and saving them to a Coda database. The bot also uses BrightData to scrape Instagram reel data.
 
 ## Project Structure
 
@@ -18,10 +18,13 @@ ddf_reels_bot/
 │   └── utils.py            # Common utilities
 ├── tests/                  # Test files
 │   ├── test_bot.py         # Bot testing
+│   ├── test_brightdata_scraper.py  # BrightData scraper testing
 │   └── test_coda_*.py      # Coda API tests
 ├── .env.example            # Example environment variables
 ├── .gitignore              # Git ignore file
-├── DEPLOYMENT.md           # Deployment documentation
+├── CONTRIBUTING.md         # Contribution guidelines
+├── CODE_OF_CONDUCT.md      # Code of conduct
+├── LICENSE                 # Project license
 ├── requirements.txt        # Python dependencies
 ├── vercel.json             # Vercel configuration
 └── README.md               # Project documentation
@@ -31,6 +34,7 @@ ddf_reels_bot/
 
 - Collects Instagram links from Telegram messages
 - Saves links to a Coda database
+- Uses BrightData to scrape Instagram reel data
 - Supports both polling and webhook modes
 - Configurable authorization system
 - Admin commands for monitoring
@@ -52,6 +56,8 @@ The following environment variables are required:
 | `CODA_API_KEY` | Coda API key | `3e92f721-91d1-485e-aab9-b7d50e4fa4da` |
 | `CODA_DOC_ID` | Coda document ID | `NYzN0H9At4` |
 | `CODA_TABLE_ID` | Coda table ID | `grid-Pyccn7MrAA` |
+| `CODA_LINK_COLUMN_ID` | Coda link column ID | `c-LFekrYG0se` |
+| `BRIGHT_DATA_API_KEY` | BrightData API key | `your_brightdata_api_key` |
 
 Optional environment variables:
 
@@ -105,8 +111,13 @@ Individual tests can be run with:
 ```bash
 python -m tests.test_bot
 python -m tests.test_coda_connection
+python -m tests.test_brightdata_scraper
 ```
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
 
 ## License
 
-This project is proprietary and owned by DDF. 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 

@@ -85,8 +85,8 @@ def main():
     """Main function to test the Bright Data scraper API"""
     print("=== Testing Bright Data /scrape Endpoint ===")
     
-    # Test Instagram Reel URL
-    TEST_REEL_URL = "https://www.instagram.com/share/reel/_kZE3ysBY"
+    # Test Instagram Reel URL - using a sample URL
+    TEST_REEL_URL = "https://www.instagram.com/reel/example"
     
     print(f"Testing with URL: {TEST_REEL_URL}")
     
